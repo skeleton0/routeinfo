@@ -3,6 +3,7 @@
 #include <string.h>
 #include <unistd.h>
 #include "request.h"
+#include <stdio.h>
 
 int main()
 {
@@ -18,10 +19,18 @@ int main()
 	//bind socket
 	bind(nlsock, (struct sockaddr*)&src_addr, sizeof(struct sockaddr_nl));
 
+	struct routeinfo info = {0, NULL, 0, 0, 784808664};
 	struct msghdr msg = build_request();
+	get_routeinfo(nlsock, msg, &info);
 
 	close(nlsock);
 	free_request(&msg);
+
+	printf("***ROUTE INFO***\n");
+	printf("Interface index: %d\n", info.int_index);
+	printf("Interface ip: %u\n", info.int_ip);
+	printf("Gateway ip: %u\n", info.gateway_ip);
+	printf("Destination ip: %u\n", info.dest_ip);
 
 	return 0;
 }
