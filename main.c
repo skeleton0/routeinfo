@@ -37,7 +37,7 @@ int main()
 	close(nlsock);
 	free_request(&routemsg);
 	free_request(&addrmsg);
-	free_routeinfo(routeinfo);
+	free_routeinfo(info);
 
 	return 0;
 }

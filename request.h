@@ -12,7 +12,7 @@ struct routeinfo
 	int dest_ip; //remote host IP address
 };
 
-void free_routeinfo(struct routeinfo info)
+void free_routeinfo(struct routeinfo info);
 struct msghdr build_request();
 struct msghdr build_getroute_request();
 struct msghdr build_getaddr_request();

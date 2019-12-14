@@ -11,10 +11,10 @@
 
 void free_routeinfo(struct routeinfo info)
 {
-	if (info->int_name != NULL)
+	if (info.int_name != NULL)
 	{
-		free(info->int_name);
-		info->int_name = NULL;
+		free(info.int_name);
+		info.int_name = NULL;
 	}
 }
 
