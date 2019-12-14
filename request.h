@@ -4,12 +4,12 @@
 
 struct routeinfo
 {
-	int int_index; //index of interface
-	char* int_name; //name of interface
-	int int_ip; //interface IP address
+	int int_index; 			//index of interface
+	char* int_name; 		//name of interface
+	struct in_addr int_ip; 		//interface IP address
 
-	int gateway_ip; //gateway IP address
-	int dest_ip; //remote host IP address
+	struct in_addr gateway_ip;	//gateway IP address
+	struct in_addr dest_ip; 	//remote host IP address
 };
 
 void free_routeinfo(struct routeinfo info);

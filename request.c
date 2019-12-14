@@ -104,8 +104,8 @@ int get_routeinfo(int fd, struct msghdr msg, struct routeinfo* info)
 	if (msgtype == RTM_GETROUTE)
 	{
 		//store IP addr in destination attribute
-		int* dst_attr = (int*) RTA_DATA(RTM_RTA(NLMSG_DATA(msg.msg_iov->iov_base)));
-		*dst_attr = info->dest_ip;
+		uint32_t* dst_attr = (uint32_t*) RTA_DATA(RTM_RTA(NLMSG_DATA(msg.msg_iov->iov_base)));
+		*dst_attr = info->dest_ip.s_addr;
 	}
 
 	if (sendmsg(fd, &msg, 0) < 0)
@@ -160,10 +160,10 @@ int get_routeinfo(int fd, struct msghdr msg, struct routeinfo* info)
 					info->int_index = *(int*) RTA_DATA(attr);
 					break;
 				case RTA_GATEWAY:
-					info->gateway_ip = *(int*) RTA_DATA(attr);
+					info->gateway_ip.s_addr = *(uint32_t*) RTA_DATA(attr);
 					break;
 				case RTA_PREFSRC:
-					info->int_ip = *(int*) RTA_DATA(attr);
+					info->int_ip.s_addr = *(uint32_t*) RTA_DATA(attr);
 					break;
 			}
 		}
