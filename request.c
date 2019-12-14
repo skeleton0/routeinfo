@@ -7,6 +7,8 @@
 #include <unistd.h>
 #include <stdio.h>
 
+#define MAX_BUF 1024
+
 struct msghdr build_request()
 {
 	struct sockaddr_nl* addr = (struct sockaddr_nl*) malloc(sizeof(struct sockaddr_nl));
@@ -66,8 +68,7 @@ struct msghdr build_getaddr_request()
 	nlmsg->nlmsg_flags = NLM_F_REQUEST;
 	nlmsg->nlmsg_pid = getpid();
 
-	struct ifaddrmsg* addrmsg = (struct ifaddrmsg*) NLMSG_DATA(nlmsg);
-	rtmsg->ifa_family = AF_INET;
+	((struct ifaddrmsg*) NLMSG_DATA(nlmsg))->ifa_family = AF_INET;
 
 	struct msghdr msg = build_request();
 	msg.msg_iov->iov_base = nlmsg;
@@ -90,6 +91,7 @@ int get_routeinfo(int fd, struct msghdr msg, struct routeinfo* info)
 {
 	int msgtype = ((struct nlmsghdr*) msg.msg_iov->iov_base)->nlmsg_type;
 
+	//populate message with dynamic data
 	if (msgtype == RTM_GETROUTE)
 	{
 		//store IP addr in destination attribute
@@ -105,7 +107,6 @@ int get_routeinfo(int fd, struct msghdr msg, struct routeinfo* info)
 	if (sendmsg(fd, &msg, 0) < 0)
 		return -1;
 	
-	const int MAX_BUF = 1024;
 	char buf[MAX_BUF] = {0}; 
 
 	int bytes_read = recv(fd, buf, MAX_BUF, 0);
@@ -116,10 +117,21 @@ int get_routeinfo(int fd, struct msghdr msg, struct routeinfo* info)
 	if (!NLMSG_OK(nlmsg, bytes_read))
 	       return -1;
 
-	struct rtmsg* rtmsg = (struct rtmsg*) NLMSG_DATA(nlmsg);	
+	//get attributes start and length
+	struct rtattr* attr;
+	int rtpayload;
+	if (msgtype == RTM_GETROUTE)
+	{
+		attr = RTM_RTA(NLMSG_DATA(nlmsg));	
+		rtpayload = RTM_PAYLOAD(nlmsg);
+	}
+	else if (msgtype == RTM_GETADDR)
+	{
+		attr = IFA_RTA(NLMSG_DATA(nlmsg));
+		rtpayload = IFA_PAYLOAD(nlmsg);
+	}
 
-	int rtpayload = RTM_PAYLOAD(nlmsg);
-	for (struct rtattr* attr = RTM_RTA(rtmsg); RTA_OK(attr, rtpayload); attr = RTA_NEXT(attr, rtpayload))
+	for (; RTA_OK(attr, rtpayload); attr = RTA_NEXT(attr, rtpayload))
 	{
 		int* val;
 
@@ -134,6 +146,13 @@ int get_routeinfo(int fd, struct msghdr msg, struct routeinfo* info)
 			case RTA_PREFSRC:
 				info->int_ip = *(int*) RTA_DATA(attr);
 				break;
+			case IFA_LABEL:
+				{
+					info->int_name = malloc(RTA_PAYLOAD(attr) + 1);
+					memset(info->int_name, 0, RTA_PAYLOAD(attr) + 1);
+					memcpy(info->int_name, RTA_DATA(attr), RTA_PAYLOAD(attr));
+					break;
+				}
 		}
 	}
 

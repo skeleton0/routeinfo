@@ -4,6 +4,7 @@
 #include <unistd.h>
 #include "request.h"
 #include <stdio.h>
+#include <stdlib.h>
 
 int main()
 {
@@ -28,9 +29,12 @@ int main()
 
 	printf("***ROUTE INFO***\n");
 	printf("Interface index: %d\n", info.int_index);
+	printf("Interface name: %s\n", info.int_name);
 	printf("Interface ip: %u\n", info.int_ip);
 	printf("Gateway ip: %u\n", info.gateway_ip);
 	printf("Destination ip: %u\n", info.dest_ip);
+
+	free(info.int_name);
 
 	return 0;
 }
