@@ -13,5 +13,7 @@ struct routeinfo
 };
 
 struct msghdr build_request();
+struct msghdr build_getroute_request();
+struct msghdr build_getaddr_request();
 void free_request(struct msghdr* msg);
 int get_routeinfo(int fd, struct msghdr msg, struct routeinfo* info);
