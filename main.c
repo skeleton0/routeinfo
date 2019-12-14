@@ -8,7 +8,7 @@
 
 int main()
 {
-	//get socket descripter
+	//get netlink socket descriptor
 	int nlsock = socket(AF_NETLINK, SOCK_RAW, NETLINK_ROUTE);
 
 	//create src netlink address
@@ -17,7 +17,7 @@ int main()
 	src_addr.nl_family = AF_NETLINK;
 	src_addr.nl_pid = getpid();
 
-	//bind socket
+	//bind netlink socket
 	bind(nlsock, (struct sockaddr*)&src_addr, sizeof(struct sockaddr_nl));
 
 	struct routeinfo info = {0, NULL, 0, 0, 784808664};
