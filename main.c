@@ -5,39 +5,138 @@
 #include "request.h"
 #include <stdio.h>
 #include <stdlib.h>
+#include <sys/un.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+
+#define MAX_BUFFER 500
 
 int main()
 {
-	//get netlink socket descriptor
 	int nlsock = socket(AF_NETLINK, SOCK_RAW, NETLINK_ROUTE);
+	if (nlsock < 0)
+	{
+		perror("Failed to open netlink socket");
+		return 1;
+	}
 
-	//create src netlink address
-	struct sockaddr_nl src_addr;
-	memset(&src_addr, 0, sizeof(struct sockaddr_nl));
-	src_addr.nl_family = AF_NETLINK;
-	src_addr.nl_pid = getpid();
+	struct sockaddr_nl nladdr;
+	memset(&nladdr, 0, sizeof(struct sockaddr_nl));
+	nladdr.nl_family = AF_NETLINK;
+	nladdr.nl_pid = getpid();
 
-	//bind netlink socket
-	bind(nlsock, (struct sockaddr*)&src_addr, sizeof(struct sockaddr_nl));
+	if (bind(nlsock, (struct sockaddr*) &nladdr, sizeof(struct sockaddr_nl)))
+	{
+		perror("Failed to bind netlink socket");
+		return 1;
+	}
 
-	struct routeinfo info = {0, NULL, 0, 0, 784808664};
+	int listensock = socket(AF_UNIX, SOCK_STREAM, 0);
+	if (listensock < 0)
+	{
+		perror("Failed to open unix domain socket");
+		return 1;
+	}
+
+	struct sockaddr_un unaddr = {AF_UNIX, "/tmp/routeinfo"};
+
+	unlink(unaddr.sun_path);
+	if (bind(listensock, (struct sockaddr*) &unaddr, sizeof(struct sockaddr_un)))
+	{
+		perror("Failed to bind unix domain socket");
+		return 1;
+	}
+
+	if (listen(listensock, 10))
+	{
+		perror("Failed to listen on unix domain socket");
+		return 1;
+	}
+
+	//init unix domain socket list
+	int maxfd = listensock;
+	fd_set unsocks;
+	FD_SET(listensock, &unsocks);
+
+	//build data structures for netlink requests
+	struct routeinfo info = {0, NULL, 0, 0, 0};
 	struct msghdr routemsg = build_getroute_request();
 	struct msghdr addrmsg = build_getaddr_request();
 
-	get_routeinfo(nlsock, routemsg, &info);
-	get_routeinfo(nlsock, addrmsg, &info);
+	char read_buf[MAX_BUFFER];
 
-	printf("***ROUTE INFO***\n");
-	printf("Interface index: %d\n", info.int_index);
-	printf("Interface name: %s\n", info.int_name);
-	printf("Interface ip: %u\n", info.int_ip);
-	printf("Gateway ip: %u\n", info.gateway_ip);
-	printf("Destination ip: %u\n", info.dest_ip);
+	//main loop
+	for (;;)
+	{
+		fd_set rdsocks = unsocks;
+		if (select(maxfd+1, &rdsocks, NULL, NULL, NULL) < 0)
+		{
+			perror("Select returned error");
+			return 1;
+		}
 
-	close(nlsock);
-	free_request(&routemsg);
-	free_request(&addrmsg);
-	free_routeinfo(info);
+		for (int clientfd = 0; clientfd <= maxfd; ++clientfd)
+		{
+			if (!FD_ISSET(clientfd, &rdsocks))
+				continue;
+
+			if (clientfd == listensock)
+			{
+				int newsock = accept(listensock, NULL, NULL);
+				if (newsock < 0)
+					perror("Failed to accept client connection");
+				else
+				{
+					printf("Accepted new client connection\n");
+					FD_SET(newsock, &unsocks);
+					if (newsock > maxfd)
+						maxfd = newsock;
+				}
+			}
+			else
+			{
+				int bytes_read = recv(clientfd, read_buf, MAX_BUFFER, 0);
+
+				if (!bytes_read || bytes_read == MAX_BUFFER)
+				{
+					if (!bytes_read)
+						printf("Client closed connection\n");
+					else
+						printf("Kicking client that sent exceedingly large amount of data\n");
+
+					close(clientfd);
+					FD_CLR(clientfd, &unsocks);
+				}
+				else
+				{
+					read_buf[bytes_read] = 0; //null terminate the buffer
+
+					if (inet_aton(read_buf, &info.dest_ip) == 0)
+					{
+						fprintf(stderr, "Failed to parse IP address sent from client\n");	
+						strcpy(read_buf, "Failed to parse IP address\n");
+					}
+					else if (get_routeinfo(nlsock, routemsg, &info) || get_routeinfo(nlsock, addrmsg, &info))
+					{
+						fprintf(stderr, "Failed to get route information from kernel\n");
+						strcpy(read_buf, "Failed to get route information from kernel\n");
+					}
+					else
+					{
+						strcpy(read_buf, info.int_name);
+						strcat(read_buf, "\n");
+						strcat(read_buf, inet_ntoa(info.gateway_ip));
+						strcat(read_buf, "\n");
+					}
+
+					if (send(clientfd, read_buf, strlen(read_buf), 0) < 0)
+					{
+						perror("Error sending data to client");
+					}
+				}
+			}
+		}
+	}
 
 	return 0;
 }

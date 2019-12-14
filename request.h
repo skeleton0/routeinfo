@@ -1,6 +1,7 @@
 #pragma once
 
 #include <stdint.h>
+#include <netinet/in.h>
 
 struct routeinfo
 {
