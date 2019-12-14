@@ -21,11 +21,11 @@ int main()
 	bind(nlsock, (struct sockaddr*)&src_addr, sizeof(struct sockaddr_nl));
 
 	struct routeinfo info = {0, NULL, 0, 0, 784808664};
-	struct msghdr msg = build_request();
-	get_routeinfo(nlsock, msg, &info);
+	struct msghdr routemsg = build_getroute_request();
+	struct msghdr addrmsg = build_getaddr_request();
 
-	close(nlsock);
-	free_request(&msg);
+	get_routeinfo(nlsock, routemsg, &info);
+	get_routeinfo(nlsock, addrmsg, &info);
 
 	printf("***ROUTE INFO***\n");
 	printf("Interface index: %d\n", info.int_index);
@@ -34,6 +34,9 @@ int main()
 	printf("Gateway ip: %u\n", info.gateway_ip);
 	printf("Destination ip: %u\n", info.dest_ip);
 
+	close(nlsock);
+	free_request(&routemsg);
+	free_request(&addrmsg);
 	free(info.int_name);
 
 	return 0;
