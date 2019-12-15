@@ -147,9 +147,8 @@ int get_routeinfo(int fd, struct msghdr msg, struct routeinfo* info)
 	struct
 	{
 		int oif;
-		int gateway;
 		int label;
-	} found_data = {0, 0, 0};
+	} found_data = {0, 0,};
 
 	//parse attributes
 	for (; RTA_OK(attr, rtpayload); attr = RTA_NEXT(attr, rtpayload))
@@ -164,7 +163,6 @@ int get_routeinfo(int fd, struct msghdr msg, struct routeinfo* info)
 					break;
 				case RTA_GATEWAY:
 					info->gateway_ip.s_addr = *(uint32_t*) RTA_DATA(attr);
-					found_data.gateway = 1;
 					break;
 				case RTA_PREFSRC:
 					info->int_ip.s_addr = *(uint32_t*) RTA_DATA(attr);
@@ -187,7 +185,7 @@ int get_routeinfo(int fd, struct msghdr msg, struct routeinfo* info)
 		}
 	}
 
-	if (found_data.oif && found_data.gateway || found_data.label)
+	if (found_data.oif || found_data.label)
 		return 0;
 	else 
 		return -1;

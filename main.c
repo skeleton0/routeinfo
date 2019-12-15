@@ -109,7 +109,11 @@ int main()
 				}
 				else
 				{
-					read_buf[bytes_read] = 0; //null terminate the buffer
+					//null terminate the buffer
+					read_buf[bytes_read] = 0;
+
+					//clear routeinfo
+					memset(&info, 0, sizeof(struct routeinfo));
 
 					if (inet_aton(read_buf, &info.dest_ip) == 0)
 					{
@@ -125,7 +129,12 @@ int main()
 					{
 						strcpy(read_buf, info.int_name);
 						strcat(read_buf, "\n");
-						strcat(read_buf, inet_ntoa(info.gateway_ip));
+						
+						if (info.gateway_ip.s_addr)
+							strcat(read_buf, inet_ntoa(info.gateway_ip));
+						else
+							strcat(read_buf, "Target host is on local network");
+
 						strcat(read_buf, "\n");
 					}
 
