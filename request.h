@@ -1,6 +1,5 @@
 #pragma once
 
-#include <stdint.h>
 #include <netinet/in.h>
 
 #define MAX_INT_NAME 25

@@ -1,7 +1,6 @@
 #include "request.h"
 #include <sys/socket.h>
 #include <linux/rtnetlink.h>
-#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
@@ -29,7 +28,7 @@ struct msghdr build_request()
 struct msghdr build_getroute_request()
 {
 	//ensuring 4 byte boundaries in case of some odd compiler
-	const int nlmsg_bytes = NLMSG_SPACE(sizeof(struct rtmsg)) + RTA_SPACE(sizeof(uint32_t));
+	const int nlmsg_bytes = NLMSG_SPACE(sizeof(struct rtmsg)) + RTA_SPACE(sizeof(in_addr_t));
 
 	struct nlmsghdr* nlmsg = (struct nlmsghdr*) malloc(nlmsg_bytes);
 	memset(nlmsg, 0, nlmsg_bytes);
@@ -45,7 +44,7 @@ struct msghdr build_getroute_request()
 	rtmsg->rtm_type = RTN_UNICAST;
 
 	struct rtattr* attr = RTM_RTA(rtmsg);
-	attr->rta_len = RTA_LENGTH(sizeof(uint32_t));
+	attr->rta_len = RTA_LENGTH(sizeof(in_addr_t));
 	attr->rta_type = RTA_DST;
 
 	struct msghdr msg = build_request();
@@ -95,7 +94,7 @@ int get_routeinfo(int fd, struct msghdr msg, struct routeinfo* info)
 	if (msgtype == RTM_GETROUTE)
 	{
 		//store IP addr in destination attribute
-		uint32_t* dst_attr = (uint32_t*) RTA_DATA(RTM_RTA(NLMSG_DATA(msg.msg_iov->iov_base)));
+		in_addr_t* dst_attr = (in_addr_t*) RTA_DATA(RTM_RTA(NLMSG_DATA(msg.msg_iov->iov_base)));
 		*dst_attr = info->dest_ip.s_addr;
 	}
 
@@ -162,10 +161,10 @@ int get_routeinfo(int fd, struct msghdr msg, struct routeinfo* info)
 					found_data.oif = 1;
 					break;
 				case RTA_GATEWAY:
-					info->gateway_ip.s_addr = *(uint32_t*) RTA_DATA(attr);
+					info->gateway_ip.s_addr = *(in_addr_t*) RTA_DATA(attr);
 					break;
 				case RTA_PREFSRC:
-					info->int_ip.s_addr = *(uint32_t*) RTA_DATA(attr);
+					info->int_ip.s_addr = *(in_addr_t*) RTA_DATA(attr);
 					break;
 			}
 		}
