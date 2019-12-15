@@ -9,15 +9,6 @@
 
 #define MAX_BUF 1024
 
-void free_routeinfo(struct routeinfo info)
-{
-	if (info.int_name != NULL)
-	{
-		free(info.int_name);
-		info.int_name = NULL;
-	}
-}
-
 struct msghdr build_request()
 {
 	struct sockaddr_nl* addr = (struct sockaddr_nl*) malloc(sizeof(struct sockaddr_nl));
@@ -169,9 +160,18 @@ int get_routeinfo(int fd, struct msghdr msg, struct routeinfo* info)
 		}
 		else if (msgtype == RTM_GETADDR && attr->rta_type == IFA_LABEL)
 		{
-			info->int_name = malloc(RTA_PAYLOAD(attr) + 1);
-			memset(info->int_name, 0, RTA_PAYLOAD(attr) + 1);
-			memcpy(info->int_name, RTA_DATA(attr), RTA_PAYLOAD(attr));
+			int attrpl = RTA_PAYLOAD(attr);
+			if (attrpl < MAX_INT_NAME)
+			{
+				memcpy(info->int_name, RTA_DATA(attr), attrpl);
+				info->int_name[attrpl] = 0;
+			}
+			else
+			{
+				fprintf(stderr, "Interface label is too long\n");
+				return -1;
+			}
+
 			break;
 		}
 	}
