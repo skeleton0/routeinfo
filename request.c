@@ -102,7 +102,7 @@ int get_routeinfo(int fd, struct msghdr msg, struct routeinfo* info)
 	if (sendmsg(fd, &msg, 0) < 0)
 		return -1;
 	
-	char buf[MAX_BUF] = {0}; 
+	char buf[MAX_BUF]; 
 
 	int bytes_read = recv(fd, buf, MAX_BUF, 0);
 	if (bytes_read >= 1024 || bytes_read < 0)
@@ -111,6 +111,10 @@ int get_routeinfo(int fd, struct msghdr msg, struct routeinfo* info)
 	struct nlmsghdr* nlmsg = (struct nlmsghdr*) buf;
 	if (!NLMSG_OK(nlmsg, bytes_read) || nlmsg->nlmsg_type == NLMSG_ERROR)
 	       return -1;
+
+	//if netlink message is multipart
+	if (nlmsg->nlmsg_flags & NLM_F_MULTI)
+		handle_multipart_msg(fd);
 
 	//get attributes start and length
 	struct rtattr* attr;
@@ -187,4 +191,25 @@ int get_routeinfo(int fd, struct msghdr msg, struct routeinfo* info)
 		return 0;
 	else 
 		return -1;
+}
+
+/* Multipart netlink messages are terminated with a seperate NLMSG_DONE msg
+ * so I need to remove it from the buffer for subsequent reads*/
+int handle_multipart_msg(int fd)
+{
+	char buf[MAX_BUF];
+	struct nlmsghdr* nlmsg;
+	do
+	{
+		int bytes = recv(fd, buf, MAX_BUF, 0);	
+
+		if (bytes < 0 || bytes > MAX_BUF)
+			return -1;
+
+		nlmsg = (struct nlmsghdr*) buf;
+		if (!NLMSG_OK(nlmsg, bytes))
+			return -1;
+	} while (nlmsg->nlmsg_type != NLMSG_DONE);
+
+	return 0;
 }
