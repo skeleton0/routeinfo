@@ -59,7 +59,7 @@ int main()
 	FD_SET(listensock, &unsocks);
 
 	//build data structures for netlink requests
-	struct routeinfo info = {0, NULL, 0, 0, 0};
+	struct routeinfo info = {0, {0}, 0, 0, 0};
 	struct msghdr routemsg = build_getroute_request();
 	struct msghdr addrmsg = build_getaddr_request();
 

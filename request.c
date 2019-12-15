@@ -140,6 +140,13 @@ int get_routeinfo(int fd, struct msghdr msg, struct routeinfo* info)
 		rtpayload = IFA_PAYLOAD(nlmsg);
 	}
 
+	struct
+	{
+		int oif;
+		int gateway;
+		int label;
+	} found_data = {0, 0, 0};
+
 	//parse attributes
 	for (; RTA_OK(attr, rtpayload); attr = RTA_NEXT(attr, rtpayload))
 	{
@@ -149,9 +156,11 @@ int get_routeinfo(int fd, struct msghdr msg, struct routeinfo* info)
 			{
 				case RTA_OIF:
 					info->int_index = *(int*) RTA_DATA(attr);
+					found_data.oif = 1;
 					break;
 				case RTA_GATEWAY:
 					info->gateway_ip.s_addr = *(uint32_t*) RTA_DATA(attr);
+					found_data.gateway = 1;
 					break;
 				case RTA_PREFSRC:
 					info->int_ip.s_addr = *(uint32_t*) RTA_DATA(attr);
@@ -164,17 +173,18 @@ int get_routeinfo(int fd, struct msghdr msg, struct routeinfo* info)
 			if (attrpl < MAX_INT_NAME)
 			{
 				memcpy(info->int_name, RTA_DATA(attr), attrpl);
-				info->int_name[attrpl] = 0;
+				info->int_name[attrpl] = 0; //null terminate string
+				found_data.label = 1;
 			}
 			else
-			{
 				fprintf(stderr, "Interface label is too long\n");
-				return -1;
-			}
 
 			break;
 		}
 	}
 
-	return 0;
+	if (found_data.oif && found_data.gateway || found_data.label)
+		return 0;
+	else 
+		return -1;
 }
