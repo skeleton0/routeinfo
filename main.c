@@ -13,8 +13,8 @@
 
 int main()
 {
-	int nlsock = socket(AF_NETLINK, SOCK_RAW, NETLINK_ROUTE);
-	if (nlsock < 0)
+	int nlfd = socket(AF_NETLINK, SOCK_RAW, NETLINK_ROUTE);
+	if (nlfd < 0)
 	{
 		perror("Failed to open netlink socket");
 		return 1;
@@ -25,14 +25,14 @@ int main()
 	nladdr.nl_family = AF_NETLINK;
 	nladdr.nl_pid = getpid();
 
-	if (bind(nlsock, (struct sockaddr*) &nladdr, sizeof(struct sockaddr_nl)))
+	if (bind(nlfd, (struct sockaddr*) &nladdr, sizeof(struct sockaddr_nl)))
 	{
 		perror("Failed to bind netlink socket");
 		return 1;
 	}
 
-	int listensock = socket(AF_UNIX, SOCK_STREAM, 0);
-	if (listensock < 0)
+	int listenfd = socket(AF_UNIX, SOCK_STREAM, 0);
+	if (listenfd < 0)
 	{
 		perror("Failed to open unix domain socket");
 		return 1;
@@ -41,25 +41,25 @@ int main()
 	struct sockaddr_un unaddr = {AF_UNIX, "/tmp/routeinfo"};
 
 	unlink(unaddr.sun_path);
-	if (bind(listensock, (struct sockaddr*) &unaddr, sizeof(struct sockaddr_un)))
+	if (bind(listenfd, (struct sockaddr*) &unaddr, sizeof(struct sockaddr_un)))
 	{
 		perror("Failed to bind unix domain socket");
 		return 1;
 	}
 
-	if (listen(listensock, 10))
+	if (listen(listenfd, 10))
 	{
 		perror("Failed to listen on unix domain socket");
 		return 1;
 	}
 
 	//init unix domain socket list
-	int maxfd = listensock;
-	fd_set unsocks;
-	FD_SET(listensock, &unsocks);
+	int maxfd = listenfd;
+	fd_set masterfds;
+	FD_SET(listenfd, &masterfds);
 
 	//build data structures for netlink requests
-	struct routeinfo info = {0, {0}, 0, 0, 0};
+	struct routeinfo info;
 	struct msghdr routemsg = build_getroute_request();
 	struct msghdr addrmsg = build_getaddr_request();
 
@@ -68,34 +68,34 @@ int main()
 	//main loop
 	for (;;)
 	{
-		fd_set rdsocks = unsocks;
-		if (select(maxfd+1, &rdsocks, NULL, NULL, NULL) < 0)
+		fd_set readfds = masterfds;
+		if (select(maxfd+1, &readfds, NULL, NULL, NULL) < 0)
 		{
 			perror("Select returned error");
 			return 1;
 		}
 
-		for (int clientfd = 0; clientfd <= maxfd; ++clientfd)
+		for (int fd = 0; fd <= maxfd; ++fd)
 		{
-			if (!FD_ISSET(clientfd, &rdsocks))
+			if (!FD_ISSET(fd, &readfds))
 				continue;
 
-			if (clientfd == listensock)
+			if (fd == listenfd)
 			{
-				int newsock = accept(listensock, NULL, NULL);
-				if (newsock < 0)
+				int newfd = accept(listenfd, NULL, NULL);
+				if (newfd < 0)
 					perror("Failed to accept client connection");
 				else
 				{
 					printf("Accepted new client connection\n");
-					FD_SET(newsock, &unsocks);
-					if (newsock > maxfd)
-						maxfd = newsock;
+					FD_SET(newfd, &masterfds);
+					if (newfd > maxfd)
+						maxfd = newfd;
 				}
 			}
 			else
 			{
-				int bytes_read = recv(clientfd, read_buf, MAX_BUFFER, 0);
+				int bytes_read = recv(fd, read_buf, MAX_BUFFER, 0);
 
 				if (!bytes_read || bytes_read == MAX_BUFFER)
 				{
@@ -104,8 +104,8 @@ int main()
 					else
 						printf("Kicking client that sent exceedingly large amount of data\n");
 
-					close(clientfd);
-					FD_CLR(clientfd, &unsocks);
+					close(fd);
+					FD_CLR(fd, &masterfds);
 				}
 				else
 				{
@@ -120,7 +120,7 @@ int main()
 						fprintf(stderr, "Failed to parse IP address sent from client\n");	
 						strcpy(read_buf, "Failed to parse IP address\n");
 					}
-					else if (get_routeinfo(nlsock, routemsg, &info) || get_routeinfo(nlsock, addrmsg, &info))
+					else if (get_routeinfo(nlfd, routemsg, &info) || get_routeinfo(nlfd, addrmsg, &info))
 					{
 						fprintf(stderr, "Failed to get route information from kernel\n");
 						strcpy(read_buf, "Failed to get route information from kernel\n");
@@ -138,7 +138,7 @@ int main()
 						strcat(read_buf, "\n");
 					}
 
-					if (send(clientfd, read_buf, strlen(read_buf), 0) < 0)
+					if (send(fd, read_buf, strlen(read_buf), 0) < 0)
 					{
 						perror("Error sending data to client");
 					}
